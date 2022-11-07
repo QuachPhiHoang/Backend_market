@@ -13,6 +13,31 @@ const ProductSchema = new mongoose.Schema(
     colors: { type: Array },
     price: { type: Number, required: true },
     oldPrice: { type: Number, required: true },
+    numOfReviews: {
+      type: Number,
+      default: 0,
+    },
+    ratings: {
+      type: Number,
+      default: 0,
+    },
+    reviews: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        name: { type: String, required: true },
+        rating: { type: Number, required: true },
+        comment: { type: String, required: true },
+      },
+    ],
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
   { timestamps: true }
 );

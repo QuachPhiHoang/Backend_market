@@ -4,7 +4,10 @@ const jwt = require("jsonwebtoken");
 const sendToken = require("../util/jwToken");
 const sendEmail = require("../util/sendEmail");
 const crypto = require("crypto");
-
+const {
+  verifyTokenAndAuthorization,
+  verifyTokenAndAdmin,
+} = require("./verifyToken");
 //REGISTER
 
 router.post("/register", async (req, res) => {
@@ -38,11 +41,15 @@ router.post("/login", async (req, res) => {
   try {
     const user = await User.findOne({ username }).select("+password");
 
-    !user && res.status(401).json("Wrong Info!");
+    if (!user) {
+      return res.status(401).json("Wrong Info!");
+    }
 
     const isPasswordMatched = await user.comparePassword(password);
 
-    !isPasswordMatched && res.status(401).json("Wrong Info!");
+    if (!isPasswordMatched) {
+      return res.status(401).json("Wrong Info!");
+    }
 
     sendToken(user, 200, res);
   } catch (err) {
@@ -123,6 +130,78 @@ router.put("/password/reset/:token", async (req, res) => {
   user.resetPasswordToken = undefined;
   await user.save();
   sendToken(user, 200, res);
+});
+
+//CHANGE PASSWORD
+
+router.put(
+  "/change/password/:id",
+  verifyTokenAndAuthorization,
+  async (req, res) => {
+    const user = await User.findById(req.user.id).select("+password");
+    if (!user) {
+      res.status(400).json("User not found!");
+    }
+
+    const isMatchedPassword = await user.comparePassword(req.body.oldPassword);
+
+    if (!isMatchedPassword) {
+      res.status(400).json("Password old does not match");
+    }
+
+    if (req.body.newPassword !== req.body.confirmNewPassword) {
+      res.status(400).json("Password new does not match");
+    }
+    user.password = req.body.newPassword;
+    await user.save();
+    sendToken(user, 200, res);
+  }
+);
+// UPDATE PROFILE
+
+router.put(
+  "/update/profile/:id",
+  verifyTokenAndAuthorization,
+  async (req, res) => {
+    const newDataUser = {
+      email: req.body.email,
+    };
+
+    //ADD cloudinary
+
+    const user = await User.findByIdAndUpdate(req.user.id, newDataUser, {
+      new: true,
+      runValidators: true,
+      userFindAndModify: false,
+    });
+
+    res.status(200).json({
+      success: true,
+    });
+  }
+);
+
+// UPDATE ROLEADMIN -- ADMIN
+
+router.put("/update/role/:id", verifyTokenAndAdmin, async (req, res) => {
+  const newDataUser = {
+    email: req.body.email,
+    isAdmin: req.body.isAdmin,
+  };
+
+  const user = await User.findByIdAndUpdate(req.params.id, newDataUser, {
+    new: true,
+    runValidators: true,
+    userFindAndModify: false,
+  });
+
+  if (!user) {
+    return res.status(400).json("user not found!");
+  }
+
+  res.status(200).json({
+    success: true,
+  });
 });
 
 module.exports = router;

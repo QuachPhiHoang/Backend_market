@@ -13,6 +13,7 @@ const router = require("express").Router();
 
 router.post("/", verifyTokenAndAdmin, async (req, res) => {
   const newProduct = new Product(req.body);
+  newProduct.user = req.user.id;
 
   try {
     const savedProduct = await newProduct.save();
@@ -75,6 +76,44 @@ router.get("/", verifyToken, async (req, res) => {
   } catch (err) {
     res.status(500).json(err);
   }
+});
+
+router.put("/review", verifyToken, async (req, res) => {
+  const { rating, comment, productId } = req.body;
+
+  const review = {
+    user: req.user.id,
+    name: req.body.username,
+    rating: Number(rating),
+    comment,
+    productId,
+  };
+
+  const product = await Product.findById(productId);
+  console.log(product);
+  const isReviewed = product.reviews.find(
+    (rev) => rev.user.toString() === req.user.id
+  );
+
+  if (isReviewed) {
+    product.reviews.forEach((rev) => {
+      if (rev.user.toString() === req.user.id)
+        (rev.rating = rating), (rev.comment = comment);
+    });
+  } else {
+    product.reviews.push(review);
+    product.numOfReviews = product.reviews.length;
+  }
+  let avg = 0;
+  product.ratings =
+    product.reviews.forEach((rev) => (avg = avg + rev.rating)) /
+    product.reviews.length;
+
+  await product.save({ validateBeforeSave: false });
+
+  res.status(200).json({
+    success: true,
+  });
 });
 
 module.exports = router;
