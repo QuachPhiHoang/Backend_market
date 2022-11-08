@@ -78,9 +78,8 @@ router.get("/", verifyToken, async (req, res) => {
   }
 });
 
-router.put("/review", verifyToken, async (req, res) => {
-  const { rating, comment, productId } = req.body;
-  console.log(productId);
+router.put("/review/:id", verifyToken, async (req, res) => {
+  const { rating, comment } = req.body;
 
   const review = {
     user: req.user.id,
@@ -89,8 +88,8 @@ router.put("/review", verifyToken, async (req, res) => {
     comment,
   };
 
-  const product = await Product.findById(productId);
-  console.log(product);
+  const product = await Product.findById(req.params.id);
+
   const isReviewed = product.reviews.find(
     (rev) => rev.user.toString() === req.user.id.toString()
   );
