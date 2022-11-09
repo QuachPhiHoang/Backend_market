@@ -54,7 +54,10 @@ router.delete("/:id", verifyTokenAndAdmin, async (req, res) => {
 
 router.get("/find/:id", async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findById(req.params.id).populate(
+      "reviews.user",
+      "_id username"
+    );
     res.status(200).json(product);
   } catch (err) {
     res.status(500).json(err);
@@ -85,7 +88,6 @@ router.put("/review/:id", verifyToken, async (req, res) => {
 
   const review = {
     user: req.user.id,
-    name: req.user.email,
     rating: Number(rating),
     comment,
   };
@@ -139,20 +141,24 @@ router.get("/reviews", async (req, res) => {
 //DELETE REVIEWS
 
 router.delete(
-  "/delete/review",
+  "/delete/review/:id",
   verifyTokenAndAuthorization,
   async (req, res) => {
-    const product = await Product.findById(req.query.productId);
+    // nên dùng id của product theo kiểu param chứ k nên dùng theo kiểu query
+    const product = await Product.findById(req.params.id);
 
     if (!product) {
       return res.status(404).json("Product not found");
     }
 
+    if (!req.query.reviewId) {
+      return res.status(404).json("ReviewId not found");
+    }
+    console.log("req.query.reviewId", req.query.reviewId);
     const reviews = product.reviews.filter(
-      (rev) => rev.id.toString() !== req.query.id.toString()
+      (rev) => rev.user._id.toString() !== req.query.reviewId.toString()
     );
 
-    console.log(reviews);
     let avg = 0;
     reviews.forEach((rev) => {
       avg = avg + rev.rating;
@@ -162,7 +168,7 @@ router.delete(
     const numOfReviews = reviews.length;
 
     await Product.findByIdAndUpdate(
-      req.query.productId,
+      req.params.id,
       {
         reviews,
         ratings,

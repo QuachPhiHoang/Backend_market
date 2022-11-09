@@ -28,7 +28,8 @@ const ProductSchema = new mongoose.Schema(
           ref: "User",
           required: true,
         },
-        name: { type: String, required: true },
+        // Không cần phải set name ở đây nữa, get theo user là sẽ có. Đoạn này thừa (dòng 32)
+        // name: { type: String, required: true },
         rating: { type: Number, required: true },
         comment: { type: String, required: true },
       },
