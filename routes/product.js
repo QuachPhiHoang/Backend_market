@@ -78,15 +78,18 @@ router.get("/", verifyToken, async (req, res) => {
   }
 });
 
+//CREATE REVIEWS
+
 router.put("/review/:id", verifyToken, async (req, res) => {
   const { rating, comment } = req.body;
 
   const review = {
     user: req.user.id,
-    name: req.user.username,
+    name: req.user.email,
     rating: Number(rating),
     comment,
   };
+  console.log(review);
 
   const product = await Product.findById(req.params.id);
 
@@ -104,10 +107,10 @@ router.put("/review/:id", verifyToken, async (req, res) => {
     product.numOfReviews = product.reviews.length;
   }
   let avg = 0;
-  product.ratings =
-    product.reviews.forEach((rev) => {
-      avg = avg + rev.rating;
-    }) / product.reviews.length;
+  product.reviews.forEach((rev) => {
+    avg = avg + rev.rating;
+  });
+  product.ratings = avg / product.reviews.length;
 
   await product.save({ validateBeforeSave: false });
 
@@ -115,5 +118,67 @@ router.put("/review/:id", verifyToken, async (req, res) => {
     success: true,
   });
 });
+
+//GET ALL REVIEWS PRODUCTS
+
+router.get("/reviews", async (req, res) => {
+  const product = await Product.findById(req.query.id);
+
+  console.log(product);
+
+  if (!product) {
+    return res.status(404).json("Product not found");
+  }
+
+  res.status(200).json({
+    success: true,
+    reviews: product.reviews,
+  });
+});
+
+//DELETE REVIEWS
+
+router.delete(
+  "/delete/review",
+  verifyTokenAndAuthorization,
+  async (req, res) => {
+    const product = await Product.findById(req.query.productId);
+
+    if (!product) {
+      return res.status(404).json("Product not found");
+    }
+
+    const reviews = product.reviews.filter(
+      (rev) => rev.id.toString() !== req.query.id.toString()
+    );
+
+    console.log(reviews);
+    let avg = 0;
+    reviews.forEach((rev) => {
+      avg = avg + rev.rating;
+    });
+    const ratings = avg / reviews.length;
+
+    const numOfReviews = reviews.length;
+
+    await Product.findByIdAndUpdate(
+      req.query.productId,
+      {
+        reviews,
+        ratings,
+        numOfReviews,
+      },
+      {
+        new: true,
+        runValidators: true,
+        userFindAndModify: false,
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+    });
+  }
+);
 
 module.exports = router;

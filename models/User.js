@@ -29,6 +29,11 @@ UserSchema.pre("save", async function (next) {
   this.password = await bcrypt.hash(this.password, 10);
 });
 
+UserSchema.pre("findByIdAndUpdate", async function (next) {
+  this.options.runValidators = true;
+  next();
+});
+
 //COMPARE PASSWORD
 
 UserSchema.methods.comparePassword = async function (password) {
