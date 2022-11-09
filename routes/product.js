@@ -54,7 +54,10 @@ router.delete("/:id", verifyTokenAndAdmin, async (req, res) => {
 
 router.get("/find/:id", async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findById(req.params.id).populate(
+      "reviews.user",
+      "_id username"
+    );
     res.status(200).json(product);
   } catch (err) {
     res.status(500).json(err);
@@ -85,7 +88,6 @@ router.put("/review/:id", verifyToken, async (req, res) => {
 
   const review = {
     user: req.user.id,
-    name: req.user.email,
     rating: Number(rating),
     comment,
   };
