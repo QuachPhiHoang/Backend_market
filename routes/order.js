@@ -91,6 +91,7 @@ router.get("/income", verifyTokenAndAdmin, async (req, res) => {
         },
       },
     ]);
+    console.log(lastMonth);
     console.log(previousMonth);
     res.status(200).json(income);
   } catch (err) {
