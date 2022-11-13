@@ -1,4 +1,6 @@
 const Order = require("../models/Order");
+const Product = require("../models/Product");
+
 const {
   verifyToken,
   verifyTokenAndAuthorization,
@@ -7,65 +9,158 @@ const {
 
 const router = require("express").Router();
 
-//CREATE
+//CREATE ORDER
 
-router.post("/", verifyToken, async (req, res) => {
-  const newOrder = new Order(req.body);
+router.post("/new", verifyToken, async (req, res) => {
+  const {
+    shippingInfo,
+    orderItem,
+    paymentInfo,
+    itemsPrice,
+    taxPrice,
+    shippingPrice,
+    totalPrice,
+  } = req.body;
+
+  const newOrder = new Order({
+    shippingInfo,
+    orderItem,
+    paymentInfo,
+    itemsPrice,
+    taxPrice,
+    shippingPrice,
+    totalPrice,
+    paidAt: Date.now(),
+    user: req.user.id,
+  });
+  newOrder.user = req.user.id;
 
   try {
     const savedOrder = await newOrder.save();
-    res.status(200).json(savedOrder);
+    return res.status(200).json({ success: true, savedOrder });
   } catch (err) {
-    res.status(500).json(err);
+    return res.status(500).json(err);
   }
 });
 
-//UPDATE
-router.put("/:id", verifyTokenAndAdmin, async (req, res) => {
-  try {
-    const updateOrder = await Order.findByIdAndUpdate(
-      req.params.id,
-      {
-        $set: req.body,
-      },
-      { new: true }
-    );
-    res.status(200).json(updateOrder);
-  } catch (err) {
-    res.status(500).json(err);
+//GET LOGGER IN USER ORDER
+
+router.get("/my-order", verifyToken, async (req, res) => {
+  const myOrder = await Order.find({ user: req.user.id });
+
+  if (!myOrder) {
+    return res.status(404).json("Not found order!!!");
+  }
+  const currentMyOrder = myOrder.filter((ord) => ord.user.id === req.user.id);
+
+  if (currentMyOrder) {
+    return res.status(200).json({
+      success: true,
+      myOrder,
+    });
+  } else {
+    return res.status(403).json("You are not allowed to do that!");
   }
 });
 
-//DELETE
+//GET SINGER ORDER
 
-router.delete("/:id", verifyTokenAndAdmin, async (req, res) => {
-  try {
-    await Order.findByIdAndDelete(req.params.id);
-    res.status(200).json("Order has been deleted...");
-  } catch (err) {
-    res.status(500).json(err);
+router.get("/:id", verifyToken, async (req, res) => {
+  const order = await Order.findById(req.params.id).populate(
+    "user",
+    "username email"
+  );
+
+  if (!order) {
+    return res.status(404).json("Not found order!!!");
+  }
+
+  if (req.user.id === order.user.id || req.user.isAdmin) {
+    return res.status(200).json({
+      success: true,
+      order,
+    });
+  } else {
+    return res.status(403).json("You are not allowed to do that!");
   }
 });
 
-//GET USER ORDER
+//GET ALL ORDER -- ADMIN
 
-router.get("/find/:id", verifyTokenAndAuthorization, async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.userId);
-    res.status(200).json(order);
-  } catch (err) {
-    res.status(500).json(err);
+router.get("/", verifyToken, async (req, res) => {
+  const orders = await Order.find();
+
+  let totalAmount = 0;
+
+  orders.forEach((order) => {
+    totalAmount += order.totalPrice;
+  });
+
+  if (req.user.isAdmin) {
+    return res.status(200).json({
+      success: true,
+      totalAmount,
+      orders,
+    });
+  } else {
+    return res.status(403).json("You are not allowed to do that!");
   }
 });
 
-//GET ALL PRODUCTS
+//UPDATE ORDER STATUS
+router.put("/:id", verifyToken, async (req, res) => {
+  const order = await Order.findById(req.params.id);
 
-router.get("/", verifyTokenAndAdmin, async (req, res) => {
-  try {
-    const orders = await Order.find();
-    res.status(200).json(orders);
-  } catch (err) {
-    res.status(500).json(err);
+  console.log(order);
+
+  if (order.orderStatus === "Delivered") {
+    return res.status(400).json("you have already delivered this product");
+  }
+
+  order.orderItem.forEach(async (item) => {
+    await updateStock(item.product, item.quantity);
+  });
+
+  order.orderStatus = req.body.status;
+  if (req.body.status === "Delivered") {
+    order.deliveryAt = Date.now();
+  }
+
+  await order.save({ validateBeforeSave: false });
+
+  if (req.user.isAdmin) {
+    res.status(200).json({
+      success: true,
+      order,
+    });
+  } else {
+    res.status(403).json("You are not allowed to do that!");
+  }
+});
+
+async function updateStock(id, quantity) {
+  const product = await Product.findById(id);
+  product.stock -= quantity;
+
+  product.save({ validateBeforeSave: false });
+}
+
+//DELETE ORDER -- ADMIN
+
+router.delete("/:id", verifyToken, async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) {
+    return res.status(404).json("Not found order!!!");
+  }
+
+  await order.remove();
+
+  if (req.user.isAdmin) {
+    return res.status(200).json({
+      success: true,
+    });
+  } else {
+    return res.status(403).json("You are not allowed to do that!");
   }
 });
 
@@ -91,8 +186,6 @@ router.get("/income", verifyTokenAndAdmin, async (req, res) => {
         },
       },
     ]);
-    console.log(lastMonth);
-    console.log(previousMonth);
     res.status(200).json(income);
   } catch (err) {
     res.status(500).json(err);
