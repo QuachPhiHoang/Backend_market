@@ -1,4 +1,6 @@
 const Product = require("../models/Product");
+const jwt = require("jsonwebtoken");
+
 const {
   verifyToken,
   verifyTokenAndAuthorization,
@@ -66,7 +68,7 @@ router.get("/find/:id", async (req, res) => {
 
 // //GET ALL PRODUCTS
 
-router.get("/", verifyToken, async (req, res) => {
+router.get("/", async (req, res) => {
   const resultPerPage = 6;
   const productCount = await Product.countDocuments();
   const apiFeature = new ApiFeature(Product.find(), req.query)
@@ -91,9 +93,15 @@ router.put("/review/:id", verifyToken, async (req, res) => {
     rating: Number(rating),
     comment,
   };
-  console.log(review);
 
-  const product = await Product.findById(req.params.id);
+  const product = await Product.findById(req.params.id).populate(
+    "reviews.user",
+    "_id username"
+  );
+
+  if (!product) {
+    return res.status(404).json("product not found!");
+  }
 
   const isReviewed = product.reviews.find(
     (rev) => rev.user.toString() === req.user.id.toString()
@@ -101,8 +109,10 @@ router.put("/review/:id", verifyToken, async (req, res) => {
 
   if (isReviewed) {
     product.reviews.forEach((rev) => {
-      if (rev.user.toString() === req.user.id.toString())
-        (rev.rating = rating), (rev.comment = comment);
+      if (rev.user.toString() === req.user.id.toString()) {
+        rev.rating = rating;
+        rev.comment = comment;
+      }
     });
   } else {
     product.reviews.push(review);
@@ -118,15 +128,16 @@ router.put("/review/:id", verifyToken, async (req, res) => {
 
   res.status(200).json({
     success: true,
+    product: product,
   });
 });
 
 //GET ALL REVIEWS PRODUCTS
 
 router.get("/reviews", async (req, res) => {
-  const product = await Product.findById(req.query.id);
-
-  console.log(product);
+  const product = await (
+    await Product.findById(req.query.id)
+  ).populate("reviews.user", "_id username");
 
   if (!product) {
     return res.status(404).json("Product not found");
@@ -140,33 +151,40 @@ router.get("/reviews", async (req, res) => {
 
 //DELETE REVIEWS
 
-router.delete(
-  "/delete/review/:id",
-  verifyTokenAndAuthorization,
-  async (req, res) => {
-    // nên dùng id của product theo kiểu param chứ k nên dùng theo kiểu query
-    const product = await Product.findById(req.params.id);
+router.delete("/delete/review/:id", verifyToken, async (req, res) => {
+  const product = await Product.findById(req.params.id);
 
-    if (!product) {
-      return res.status(404).json("Product not found");
-    }
+  if (!product) {
+    return res.status(404).json("Product not found");
+  }
 
-    if (!req.query.reviewId) {
-      return res.status(404).json("ReviewId not found");
-    }
-    console.log("req.query.reviewId", req.query.reviewId);
-    const reviews = product.reviews.filter(
-      (rev) => rev.user._id.toString() !== req.query.reviewId.toString()
-    );
+  if (!req.query.reviewId) {
+    return res.status(404).json("ReviewId not found");
+  }
+  const reviews = product.reviews.filter(
+    (rev) => rev.id.toString() !== req.query.reviewId.toString()
+  );
+  const currentReview = product.reviews.find(
+    (rev) => rev.id === req.query.reviewId
+  );
 
+  if (
+    (currentReview && req.user.id === currentReview.user._id.toString()) ||
+    req.user.isAdmin === true
+  ) {
+    let ratings = 0;
+    const numOfReviews = reviews.length;
+    console.log(req.user.isAdmin);
     let avg = 0;
     reviews.forEach((rev) => {
       avg = avg + rev.rating;
     });
-    const ratings = avg / reviews.length;
 
-    const numOfReviews = reviews.length;
-
+    if (reviews.length === 0) {
+      ratings = reviews.length;
+    } else {
+      ratings = avg / reviews.length;
+    }
     await Product.findByIdAndUpdate(
       req.params.id,
       {
@@ -180,11 +198,12 @@ router.delete(
         userFindAndModify: false,
       }
     );
-
     res.status(200).json({
       success: true,
     });
+  } else {
+    res.status(403).json("You are not allowed to do that!");
   }
-);
+});
 
 module.exports = router;
