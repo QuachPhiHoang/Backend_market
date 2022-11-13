@@ -1,11 +1,7 @@
 const Order = require("../models/Order");
 const Product = require("../models/Product");
 
-const {
-  verifyToken,
-  verifyTokenAndAuthorization,
-  verifyTokenAndAdmin,
-} = require("./verifyToken");
+const { verifyToken, verifyTokenAndAdmin } = require("./verifyToken");
 
 const router = require("express").Router();
 
@@ -37,7 +33,7 @@ router.post("/new", verifyToken, async (req, res) => {
 
   try {
     const savedOrder = await newOrder.save();
-    return res.status(200).json({ success: true, savedOrder });
+    return res.status(200).json({ success: true, order: savedOrder });
   } catch (err) {
     return res.status(500).json(err);
   }
@@ -56,14 +52,14 @@ router.get("/my-order", verifyToken, async (req, res) => {
   if (currentMyOrder) {
     return res.status(200).json({
       success: true,
-      myOrder,
+      order: myOrder,
     });
   } else {
     return res.status(403).json("You are not allowed to do that!");
   }
 });
 
-//GET SINGER ORDER
+//GET SINGLE ORDER
 
 router.get("/:id", verifyToken, async (req, res) => {
   const order = await Order.findById(req.params.id).populate(
@@ -87,7 +83,7 @@ router.get("/:id", verifyToken, async (req, res) => {
 
 //GET ALL ORDER -- ADMIN
 
-router.get("/", verifyToken, async (req, res) => {
+router.get("/", verifyTokenAndAdmin, async (req, res) => {
   const orders = await Order.find();
 
   let totalAmount = 0;
@@ -96,19 +92,15 @@ router.get("/", verifyToken, async (req, res) => {
     totalAmount += order.totalPrice;
   });
 
-  if (req.user.isAdmin) {
-    return res.status(200).json({
-      success: true,
-      totalAmount,
-      orders,
-    });
-  } else {
-    return res.status(403).json("You are not allowed to do that!");
-  }
+  return res.status(200).json({
+    success: true,
+    totalAmount,
+    orders,
+  });
 });
 
 //UPDATE ORDER STATUS
-router.put("/:id", verifyToken, async (req, res) => {
+router.put("/:id", verifyTokenAndAdmin, async (req, res) => {
   const order = await Order.findById(req.params.id);
 
   console.log(order);
@@ -128,14 +120,10 @@ router.put("/:id", verifyToken, async (req, res) => {
 
   await order.save({ validateBeforeSave: false });
 
-  if (req.user.isAdmin) {
-    res.status(200).json({
-      success: true,
-      order,
-    });
-  } else {
-    res.status(403).json("You are not allowed to do that!");
-  }
+  res.status(200).json({
+    success: true,
+    order,
+  });
 });
 
 async function updateStock(id, quantity) {
@@ -147,24 +135,19 @@ async function updateStock(id, quantity) {
 
 //DELETE ORDER -- ADMIN
 
-router.delete("/:id", verifyToken, async (req, res) => {
+router.delete("/:id", verifyTokenAndAdmin, async (req, res) => {
   const order = await Order.findById(req.params.id);
   if (!order) {
     return res.status(404).json("Not found order!!!");
   }
 
   await order.remove();
-
-  if (req.user.isAdmin) {
-    return res.status(200).json({
-      success: true,
-    });
-  } else {
-    return res.status(403).json("You are not allowed to do that!");
-  }
+  return res.status(200).json({
+    success: true,
+  });
 });
 
-//GET MONTHLY INCOME
+//GET MONTHLY INCOME--ADMIN
 
 router.get("/income", verifyTokenAndAdmin, async (req, res) => {
   const date = new Date();
@@ -186,9 +169,9 @@ router.get("/income", verifyTokenAndAdmin, async (req, res) => {
         },
       },
     ]);
-    res.status(200).json(income);
+    return res.status(200).json({ income });
   } catch (err) {
-    res.status(500).json(err);
+    return res.status(500).json(err);
   }
 });
 
