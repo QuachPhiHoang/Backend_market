@@ -60,6 +60,7 @@ router.get("/find/:id", async (req, res) => {
       "reviews.user",
       "_id username"
     );
+    res.header("Access-Control-Allow-Origin", "*");
     res.status(200).json(product);
   } catch (err) {
     res.status(500).json(err);
@@ -73,11 +74,19 @@ router.get("/", async (req, res) => {
   const productCount = await Product.countDocuments();
   const apiFeature = new ApiFeature(Product.find(), req.query)
     .search()
-    .filter()
-    .pagination(resultPerPage);
+    .filter();
+  apiFeature.pagination(resultPerPage);
+  let products = await apiFeature.query;
+  let filteredProductsCount = products.length;
   try {
-    let products = await apiFeature.query;
-    res.status(200).json({ products, productCount });
+    res.header("Access-Control-Allow-Origin", "*");
+    res.status(200).json({
+      success: true,
+      products,
+      productCount,
+      resultPerPage,
+      filteredProductsCount,
+    });
   } catch (err) {
     res.status(500).json(err);
   }

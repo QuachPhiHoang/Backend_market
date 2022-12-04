@@ -106,7 +106,10 @@ router.put("/:id", verifyTokenAndAdmin, async (req, res) => {
   console.log(order);
 
   if (order.orderStatus === "Delivered") {
-    return res.status(400).json("you have already delivered this product");
+    return res.status(400).json({
+      success: false,
+      message: "you have already delivered this product",
+    });
   }
 
   order.orderItem.forEach(async (item) => {
