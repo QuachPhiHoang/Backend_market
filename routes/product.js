@@ -61,26 +61,27 @@ router.get("/find/:id", async (req, res) => {
       "_id username"
     );
     res.header("Access-Control-Allow-Origin", "*");
-    res.status(200).json(product);
+    return res.status(200).json(product);
   } catch (err) {
-    res.status(500).json(err);
+    return res.status(500).json(err);
   }
 });
 
 // //GET ALL PRODUCTS
 
 router.get("/", async (req, res) => {
-  const resultPerPage = 6;
+  const resultPerPage = 8;
   const productCount = await Product.countDocuments();
   const apiFeature = new ApiFeature(Product.find(), req.query)
     .search()
     .filter();
-  apiFeature.pagination(resultPerPage);
   let products = await apiFeature.query;
+  apiFeature.pagination(resultPerPage);
   let filteredProductsCount = products.length;
+  products = await apiFeature.query.clone();
   try {
     res.header("Access-Control-Allow-Origin", "*");
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       products,
       productCount,
@@ -88,7 +89,27 @@ router.get("/", async (req, res) => {
       filteredProductsCount,
     });
   } catch (err) {
-    res.status(500).json(err);
+    return res.status(500).json(err);
+  }
+});
+
+router.get("/search", async (req, res) => {
+  const resultPerPage = 5;
+  const apiFeature = new ApiFeature(Product.find(), req.query).search();
+  let products = await apiFeature.query;
+  apiFeature.pagination(resultPerPage);
+  let filteredProductsCount = products.length;
+  products = await apiFeature.query.clone();
+  try {
+    res.header("Access-Control-Allow-Origin", "*");
+    return res.status(200).json({
+      success: true,
+      resultPerPage,
+      products,
+      filteredProductsCount,
+    });
+  } catch (err) {
+    return res.status(500).json(err);
   }
 });
 

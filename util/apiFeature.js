@@ -6,7 +6,7 @@ class ApiFeature {
   search() {
     const keyword = this.queryStr.keyword
       ? {
-          name: new RegExp(this.queryStr.keyword),
+          name: new RegExp(this.queryStr.keyword, "i"),
         }
       : {};
 
@@ -24,7 +24,7 @@ class ApiFeature {
 
     removeFields.forEach((key) => delete queryCopy[key]);
 
-    //Filter for price and rating
+    //Filter for price and rating...
 
     let queryStr = JSON.stringify(queryCopy);
 

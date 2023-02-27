@@ -4,6 +4,8 @@ const jwt = require("jsonwebtoken");
 const sendToken = require("../util/jwToken");
 const sendEmail = require("../util/sendEmail");
 const crypto = require("crypto");
+const cloudinary = require("cloudinary");
+
 const {
   verifyTokenAndAuthorization,
   verifyTokenAndAdmin,
@@ -11,22 +13,26 @@ const {
 //REGISTER
 
 router.post("/register", async (req, res) => {
-  const { username, email, password } = req.body;
-
-  const newUser = await User.create({
-    username,
-    email,
-    password,
-    avatar: {
-      public_id: "sample",
-      url: "sample",
-    },
-  });
-
   try {
+    const myCloud = await cloudinary.v2.uploader.upload(req.body.avatar, {
+      folder: "avatars",
+      width: 150,
+      crop: "scale",
+    });
+    const { username, email, password } = req.body;
+
+    const newUser = await User.create({
+      username,
+      email,
+      password,
+      avatar: {
+        public_id: myCloud.public_id,
+        url: myCloud.secure_url,
+      },
+    });
     sendToken(newUser, 201, res);
   } catch (err) {
-    res.status(500).json(err);
+    return res.status(500).json({ message: "User already registered!" });
   }
 });
 
@@ -36,24 +42,26 @@ router.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
-    res.status(400).json("Please Enter Your User And Password!");
+    return res
+      .status(400)
+      .json({ message: "Please Enter Your User And Password!" });
   }
   try {
-    const user = await User.findOne({ username }).select("+password");
+    const user = await User.findOne({ username }).select("+password").exec();
 
     if (!user) {
-      return res.status(401).json("Wrong Info!");
+      return res.status(401).json({ message: "Wrong Info!" });
     }
 
     const isPasswordMatched = await user.comparePassword(password);
 
     if (!isPasswordMatched) {
-      return res.status(401).json("Wrong Info!");
+      return res.status(401).json({ message: "Wrong Info!" });
     }
 
     sendToken(user, 200, res);
   } catch (err) {
-    res.status(500).json(err);
+    return res.status(500).json(err);
   }
 });
 
