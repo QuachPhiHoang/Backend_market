@@ -1,5 +1,4 @@
 const Product = require("../models/Product");
-const jwt = require("jsonwebtoken");
 
 const {
   verifyToken,

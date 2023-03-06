@@ -7,6 +7,7 @@ const crypto = require("crypto");
 const cloudinary = require("cloudinary");
 
 const {
+  verifyToken,
   verifyTokenAndAuthorization,
   verifyTokenAndAdmin,
 } = require("./verifyToken");
@@ -14,24 +15,25 @@ const {
 
 router.post("/register", async (req, res) => {
   try {
-    const myCloud = await cloudinary.v2.uploader.upload(req.body.avatar, {
+    const { username, email, password } = req.body;
+    const myCloud = await cloudinary.v2.uploader.upload_large(req.body.avatar, {
       folder: "avatars",
       width: 150,
       crop: "scale",
     });
-    const { username, email, password } = req.body;
 
     const newUser = await User.create({
       username,
       email,
       password,
       avatar: {
-        public_id: myCloud.public_id,
-        url: myCloud.secure_url,
+        public_id: myCloud?.public_id,
+        url: myCloud?.secure_url,
       },
     });
     sendToken(newUser, 201, res);
   } catch (err) {
+    console.log(err);
     return res.status(500).json({ message: "User already registered!" });
   }
 });
@@ -78,6 +80,23 @@ router.get("/logout", async (req, res) => {
     });
   } catch (err) {
     res.status(500).json(err);
+  }
+});
+//Get User Detail
+router.get("/me", async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const user = await User.findById(req.user.id);
+    console.log(user);
+    return res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    console.log("error", error);
+    return res.status(500).json({ error });
   }
 });
 
@@ -167,15 +186,30 @@ router.put(
 );
 // UPDATE PROFILE
 
-router.put(
-  "/update/profile/:id",
-  verifyTokenAndAuthorization,
-  async (req, res) => {
-    const newDataUser = {
-      email: req.body.email,
-    };
+router.put("/update/profile", verifyToken, async (req, res) => {
+  const newDataUser = {
+    username: req.body.username,
+    email: req.body.email,
+  };
+  try {
+    // if (req.body.avatar !== "") {
+    //   const user = await User.findById(req.user.id);
 
-    //ADD cloudinary
+    //   const imageId = user.avatar.public_id;
+
+    //   await cloudinary.v2.uploader.destroy(imageId);
+
+    //   const myCloud = await cloudinary.v2.uploader.upload(req.body.avatar, {
+    //     folder: "avatars",
+    //     width: 150,
+    //     crop: "scale",
+    //   });
+
+    //   newUserData.avatar = {
+    //     public_id: myCloud.public_id,
+    //     url: myCloud.secure_url,
+    //   };
+    // }
 
     const user = await User.findByIdAndUpdate(req.user.id, newDataUser, {
       new: true,
@@ -186,8 +220,10 @@ router.put(
     res.status(200).json({
       success: true,
     });
+  } catch (error) {
+    res.status(500).json(error);
   }
-);
+});
 
 // UPDATE ROLEADMIN -- ADMIN
 

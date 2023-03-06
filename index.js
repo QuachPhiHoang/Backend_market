@@ -16,7 +16,7 @@ const cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
 
 app.use(morgan("combined"));
-app.use(cors());
+app.use(cors({ credentials: true, origin: true }));
 
 dotenv.config();
 cloudinary.config({
