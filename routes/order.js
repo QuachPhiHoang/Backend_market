@@ -13,7 +13,6 @@ router.post("/new", verifyToken, async (req, res) => {
     orderItem,
     paymentInfo,
     itemsPrice,
-    taxPrice,
     shippingPrice,
     totalPrice,
   } = req.body;
@@ -23,7 +22,6 @@ router.post("/new", verifyToken, async (req, res) => {
     orderItem,
     paymentInfo,
     itemsPrice,
-    taxPrice,
     shippingPrice,
     totalPrice,
     paidAt: Date.now(),
@@ -52,7 +50,7 @@ router.get("/my-order", verifyToken, async (req, res) => {
   if (currentMyOrder) {
     return res.status(200).json({
       success: true,
-      order: myOrder,
+      orders: myOrder,
     });
   } else {
     return res.status(403).json("You are not allowed to do that!");
@@ -102,8 +100,6 @@ router.get("/", verifyTokenAndAdmin, async (req, res) => {
 //UPDATE ORDER STATUS
 router.put("/:id", verifyTokenAndAdmin, async (req, res) => {
   const order = await Order.findById(req.params.id);
-
-  console.log(order);
 
   if (order.orderStatus === "Delivered") {
     return res.status(400).json({

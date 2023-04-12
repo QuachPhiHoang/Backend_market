@@ -60,7 +60,7 @@ router.get("/find/:id", async (req, res) => {
       "_id username"
     );
     res.header("Access-Control-Allow-Origin", "*");
-    return res.status(200).json(product);
+    return res.status(200).json({ success: true, product });
   } catch (err) {
     return res.status(500).json(err);
   }
@@ -100,7 +100,7 @@ router.get("/search", async (req, res) => {
   let filteredProductsCount = products.length;
   products = await apiFeature.query.clone();
   try {
-    res.header("Access-Control-Allow-Origin", "*");
+    // res.header("Access-Control-Allow-Origin", "*");
     return res.status(200).json({
       success: true,
       resultPerPage,
@@ -180,59 +180,62 @@ router.get("/reviews", async (req, res) => {
 
 //DELETE REVIEWS
 
-router.delete("/delete/review/:id", verifyToken, async (req, res) => {
-  const product = await Product.findById(req.params.id);
+router.delete(
+  "/delete/review/:id",
+  verifyTokenAndAuthorization,
+  async (req, res) => {
+    const product = await Product.findById(req.params.id);
 
-  if (!product) {
-    return res.status(404).json("Product not found");
-  }
-
-  if (!req.query.reviewId) {
-    return res.status(404).json("ReviewId not found");
-  }
-  const reviews = product.reviews.filter(
-    (rev) => rev.id.toString() !== req.query.reviewId.toString()
-  );
-  const currentReview = product.reviews.find(
-    (rev) => rev.id === req.query.reviewId
-  );
-
-  if (
-    (currentReview && req.user.id === currentReview.user._id.toString()) ||
-    req.user.isAdmin === true
-  ) {
-    let ratings = 0;
-    const numOfReviews = reviews.length;
-    console.log(req.user.isAdmin);
-    let avg = 0;
-    reviews.forEach((rev) => {
-      avg = avg + rev.rating;
-    });
-
-    if (reviews.length === 0) {
-      ratings = reviews.length;
-    } else {
-      ratings = avg / reviews.length;
+    if (!product) {
+      return res.status(404).json("Product not found");
     }
-    await Product.findByIdAndUpdate(
-      req.params.id,
-      {
-        reviews,
-        ratings,
-        numOfReviews,
-      },
-      {
-        new: true,
-        runValidators: true,
-        userFindAndModify: false,
-      }
+
+    if (!req.query.reviewId) {
+      return res.status(404).json("ReviewId not found");
+    }
+    const reviews = product.reviews.filter(
+      (rev) => rev.id.toString() !== req.query.reviewId.toString()
     );
-    res.status(200).json({
-      success: true,
-    });
-  } else {
-    res.status(403).json("You are not allowed to do that!");
+    const currentReview = product.reviews.find(
+      (rev) => rev.id === req.query.reviewId
+    );
+
+    if (
+      (currentReview && req.user.id === currentReview.user._id.toString()) ||
+      req.user.isAdmin === true
+    ) {
+      let ratings = 0;
+      const numOfReviews = reviews.length;
+      let avg = 0;
+      reviews.forEach((rev) => {
+        avg = avg + rev.rating;
+      });
+
+      if (reviews.length === 0) {
+        ratings = reviews.length;
+      } else {
+        ratings = avg / reviews.length;
+      }
+      await Product.findByIdAndUpdate(
+        req.params.id,
+        {
+          reviews,
+          ratings,
+          numOfReviews,
+        },
+        {
+          new: true,
+          runValidators: true,
+          userFindAndModify: false,
+        }
+      );
+      res.status(200).json({
+        success: true,
+      });
+    } else {
+      res.status(403).json("You are not allowed to do that!");
+    }
   }
-});
+);
 
 module.exports = router;

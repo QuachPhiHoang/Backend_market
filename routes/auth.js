@@ -33,7 +33,6 @@ router.post("/register", async (req, res) => {
     });
     sendToken(newUser, 201, res);
   } catch (err) {
-    console.log(err);
     return res.status(500).json({ message: "User already registered!" });
   }
 });
@@ -67,12 +66,49 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// REFRESH TOKEN
+
+router.get("/refresh", async (req, res) => {
+  try {
+    const cookies = req.cookies;
+    if (!cookies?.token)
+      return res.status(401).json({ message: "Unauthorized" });
+    const refreshToken = cookies.token;
+    jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH_SEC,
+      async (error, decode) => {
+        if (error) return res.status(401).json({ message: "Forbidden" });
+        const user = await User.findById({ _id: decode.id }).exec();
+        if (!user) return res.status(401).json({ message: "Unauthorized" });
+        const accessToken = jwt.sign(
+          {
+            id: user.id,
+            isAdmin: user.isAdmin,
+          },
+          process.env.JWT_SEC,
+          {
+            expiresIn: process.env.JWT_EXPIRES,
+          }
+        );
+        return res.json({ accessToken });
+      }
+    );
+  } catch (error) {
+    return res.status(500).json(error);
+  }
+});
+
 //LOGOUT
 router.get("/logout", async (req, res) => {
   try {
-    res.cookie("token", null, {
+    const cookies = req.cookies;
+    if (!cookies?.token) return res.sendStatus(204);
+    res.clearCookie("token", {
       expires: new Date(Date.now()),
       httpOnly: true,
+      sameSite: "None",
+      secure: true,
     });
     res.status(200).json({
       success: true,
@@ -83,19 +119,15 @@ router.get("/logout", async (req, res) => {
   }
 });
 //Get User Detail
-router.get("/me", async (req, res) => {
+router.get("/me", verifyToken, async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   try {
     const user = await User.findById(req.user.id);
-    console.log(user);
-    return res.status(200).json({
-      success: true,
-      user,
-    });
+    sendToken(user, 200, res);
+    // return res.status(200).json(user);
   } catch (error) {
-    console.log("error", error);
     return res.status(500).json({ error });
   }
 });
@@ -105,18 +137,14 @@ router.get("/me", async (req, res) => {
 router.post("/password/forgot", async (req, res) => {
   const user = await User.findOne({ email: req.body.email });
   if (!user) {
-    res.status(404).json("User not found!");
+    return res.status(404).json("User not found!");
   }
   const resetToken = user.getResetPasswordAndToken();
   await user.save({ validateBeforeSave: false });
 
-  const resetPasswordUrl = `${req.protocol}://${req.get(
-    "host"
-  )}/api/auth/password/reset/${resetToken}`;
+  const resetPasswordUrl = `${process.env.FRONTEND_URL}/password/reset/${resetToken}`;
 
-  console.log(resetPasswordUrl);
-
-  const message = `Your password reset token is :- \n\n ${resetPasswordUrl} \n\nIf you have not requested this username then, please ignore it`;
+  const message = `Your password reset token is temp :- \n\n ${resetPasswordUrl} \n\nIf you have not requested this username then, please ignore it`;
 
   try {
     await sendEmail({
@@ -147,10 +175,10 @@ router.put("/password/reset/:token", async (req, res) => {
   const user = await User.findOne({ resetPasswordToken });
 
   if (!user) {
-    res.status(400).json("User not found!");
+    return res.status(400).json("User not found!");
   }
   if (req.body.password !== req.body.confirmPassword) {
-    res.status(400).json("Password does not match");
+    return res.status(400).json("Password does not match");
   }
 
   user.password = req.body.password;
@@ -161,67 +189,72 @@ router.put("/password/reset/:token", async (req, res) => {
 
 //CHANGE PASSWORD
 
-router.put(
-  "/change/password/:id",
-  verifyTokenAndAuthorization,
-  async (req, res) => {
+router.put("/update/password", verifyToken, async (req, res) => {
+  try {
     const user = await User.findById(req.user.id).select("+password");
     if (!user) {
-      res.status(400).json("User not found!");
+      return res.status(400).json("User not found!");
     }
 
     const isMatchedPassword = await user.comparePassword(req.body.oldPassword);
 
     if (!isMatchedPassword) {
-      res.status(400).json("Password old does not match");
+      return res.status(400).json("Password old does not match");
     }
 
     if (req.body.newPassword !== req.body.confirmNewPassword) {
-      res.status(400).json("Password new does not match");
+      return res.status(400).json("Password new does not match");
     }
     user.password = req.body.newPassword;
     await user.save();
-    sendToken(user, 200, res);
+    return res.status(200).json({
+      success: true,
+    });
+  } catch (error) {
+    return res.status(500).json(error);
   }
-);
+});
 // UPDATE PROFILE
 
 router.put("/update/profile", verifyToken, async (req, res) => {
-  const newDataUser = {
-    username: req.body.username,
-    email: req.body.email,
-  };
   try {
-    // if (req.body.avatar !== "") {
-    //   const user = await User.findById(req.user.id);
+    const newUser = {
+      username: req.body.username,
+      email: req.body.email,
+    };
+    if (req.body.avatar !== "") {
+      const user = await User.findById(req.user.id);
 
-    //   const imageId = user.avatar.public_id;
+      const imageId = user.avatar.public_id;
 
-    //   await cloudinary.v2.uploader.destroy(imageId);
+      await cloudinary.v2.uploader.destroy(imageId);
 
-    //   const myCloud = await cloudinary.v2.uploader.upload(req.body.avatar, {
-    //     folder: "avatars",
-    //     width: 150,
-    //     crop: "scale",
-    //   });
+      const myCloud = await cloudinary.v2.uploader.upload_large(
+        req.body.avatar,
+        {
+          folder: "avatars",
+          width: 150,
+          crop: "scale",
+        }
+      );
 
-    //   newUserData.avatar = {
-    //     public_id: myCloud.public_id,
-    //     url: myCloud.secure_url,
-    //   };
-    // }
+      newUser.avatar = {
+        public_id: myCloud.public_id,
+        url: myCloud.secure_url,
+      };
+    }
 
-    const user = await User.findByIdAndUpdate(req.user.id, newDataUser, {
+    const user = await User.findByIdAndUpdate(req.user.id, newUser, {
       new: true,
       runValidators: true,
       userFindAndModify: false,
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
     });
   } catch (error) {
-    res.status(500).json(error);
+    return res.status(500).json(error);
   }
 });
 

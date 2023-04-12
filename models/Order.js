@@ -7,9 +7,7 @@ const OrderSchema = new mongoose.Schema(
       ward: { type: String, required: true },
       district: { type: String, required: true },
       city: { type: String, required: true },
-
-      pinCode: { type: Number, required: true },
-      phoneNo: { type: String, required: true },
+      phone: { type: String, required: true },
     },
     orderItem: [
       {
@@ -17,6 +15,8 @@ const OrderSchema = new mongoose.Schema(
         price: { type: Number, required: true },
         quantity: { type: Number, required: true },
         image: { type: String, required: true },
+        size: { type: String, required: true },
+        color: { type: String, required: true },
         product: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "Product",
@@ -33,7 +33,6 @@ const OrderSchema = new mongoose.Schema(
     paidAt: { type: String, required: true },
 
     itemsPrice: { type: Number, required: true, default: 0 },
-    taxPrice: { type: Number, required: true, default: 0 },
     shippingPrice: { type: Number, required: true, default: 0 },
     totalPrice: { type: Number, required: true, default: 0 },
 

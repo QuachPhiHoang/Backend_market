@@ -16,6 +16,7 @@ const UserSchema = new mongoose.Schema(
     avatar: { public_id: { type: String }, url: { type: String } },
     password: { type: String, required: true },
     isAdmin: { type: Boolean, default: false },
+    role: { type: String, default: "user" },
     resetPasswordToken: String,
   },
   { timestamps: true }
@@ -42,9 +43,20 @@ UserSchema.methods.comparePassword = async function (password) {
 
 //JWT TOKEN
 UserSchema.methods.getJWTToken = function () {
-  return jwt.sign({ id: this.id, isAdmin: this.isAdmin }, process.env.JWT_SEC, {
-    expiresIn: process.env.JWT_EXPIRES,
+  const accessToken = jwt.sign(
+    {
+      id: this.id,
+      isAdmin: this.isAdmin,
+    },
+    process.env.JWT_SEC,
+    {
+      expiresIn: process.env.JWT_EXPIRES,
+    }
+  );
+  const refreshToken = jwt.sign({ id: this.id }, process.env.JWT_REFRESH_SEC, {
+    expiresIn: process.env.JWT_REFRESH_EXPIRES,
   });
+  return { accessToken, refreshToken };
 };
 
 // // Generating Password Reset Token
