@@ -7,47 +7,129 @@ const {
 } = require("./verifyToken");
 
 const ApiFeature = require("../util/apiFeature");
+const cloudinary = require("cloudinary");
 
 const router = require("express").Router();
 
 //CREATE PRODUCT--ADMIN
 
-router.post("/", verifyTokenAndAdmin, async (req, res) => {
-  const newProduct = new Product(req.body);
-  newProduct.user = req.user.id;
-
+router.post("/create", verifyTokenAndAdmin, async (req, res) => {
   try {
-    const savedProduct = await newProduct.save();
-    res.status(200).json(savedProduct);
+    let images = [];
+
+    if (typeof req.body.images === "string") {
+      images.push(req.body.images);
+    } else {
+      images = req.body.images;
+    }
+
+    const imagesLinks = [];
+    const image = Object.keys(images).length;
+
+    for (let i = 0; i < image; i++) {
+      const result = await cloudinary.v2.uploader.upload(images[i], {
+        folder: "products",
+      });
+
+      imagesLinks.push({
+        public_id: result.public_id,
+        url: result.secure_url,
+      });
+    }
+
+    req.body.images = imagesLinks;
+    req.body.user = req.user.id;
+
+    const product = await Product.create(req.body);
+    res.status(200).json({
+      success: true,
+      product,
+    });
   } catch (err) {
+    console.log(err);
     res.status(500).json(err);
   }
 });
 
-//UPDATE
-router.put("/:id", verifyTokenAndAdmin, async (req, res) => {
+//UPDATE PRODUCT
+router.put("/:id", verifyTokenAndAdmin, async (req, res, next) => {
   try {
-    const updateProduct = await Product.findByIdAndUpdate(
-      req.params.id,
-      {
-        $set: req.body,
-      },
-      { new: true }
-    );
-    res.status(200).json(updateProduct);
-  } catch (err) {
-    res.status(500).json(err);
+    let product = await Product.findById(req.params.id);
+
+    if (!product) {
+      return next("Product not found", 404);
+    }
+
+    // Images Start Here
+    let images = [];
+
+    if (typeof req.body.images === "string") {
+      images.push(req.body.images);
+    } else {
+      images = req.body.images;
+    }
+
+    if (images !== undefined) {
+      // Deleting Images From Cloudinary
+      for (let i = 0; i < product.images.length; i++) {
+        await cloudinary.v2.uploader.destroy(product.images[i].public_id);
+      }
+
+      const imagesLinks = [];
+
+      for (let i = 0; i < images.length; i++) {
+        const result = await cloudinary.v2.uploader.upload(images[i], {
+          folder: "products",
+        });
+
+        imagesLinks.push({
+          public_id: result.public_id,
+          url: result.secure_url,
+        });
+      }
+
+      req.body.images = imagesLinks;
+    }
+    product = await Product.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+      useFindAndModify: false,
+    });
+
+    return res.status(200).json({
+      success: true,
+      product,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json(error);
   }
 });
 
 // //DELETE
 
-router.delete("/:id", verifyTokenAndAdmin, async (req, res) => {
+router.delete("/delete/:id", verifyTokenAndAdmin, async (req, res, next) => {
   try {
-    await Product.findByIdAndDelete(req.params.id);
-    res.status(200).json("Product has been deleted...");
+    const product = await Product.findByIdAndDelete(req.params.id);
+    if (!product) {
+      return next("Product not found", 404);
+    }
+    // Deleting Images From Cloudinary
+    for (let i = 0; i < product.images.length; i++) {
+      await cloudinary.v2.uploader.destroy(product.images[i].public_id);
+    }
+    // Remove each variant
+    for (const variant of product.variants) {
+      await variant.remove();
+    }
+
+    await product.remove();
+    res
+      .status(200)
+      .json({ success: true, message: "Product has been deleted..." });
   } catch (err) {
-    res.status(500).json(err);
+    console.log(err);
+    return res.status(500).json(err);
   }
 });
 
@@ -55,13 +137,14 @@ router.delete("/:id", verifyTokenAndAdmin, async (req, res) => {
 
 router.get("/find/:id", async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id).populate(
-      "reviews.user",
-      "_id username"
-    );
+    const product = await Product.findById(req.params.id)
+      .populate("reviews.user", "_id username")
+      .populate({ path: "variants", populate: { path: "size color" } })
+      .exec();
     res.header("Access-Control-Allow-Origin", "*");
     return res.status(200).json({ success: true, product });
   } catch (err) {
+    console.log(err);
     return res.status(500).json(err);
   }
 });
@@ -92,6 +175,25 @@ router.get("/", async (req, res) => {
   }
 });
 
+// //GET ALL ADMIN PRODUCTS
+
+router.get("/admin-products", verifyTokenAndAdmin, async (req, res) => {
+  try {
+    const products = await Product.find()
+      .populate({
+        path: "variants",
+        populate: { path: "size color" },
+      })
+      .exec();
+    return res.status(200).json({
+      success: true,
+      products,
+    });
+  } catch (err) {
+    return res.status(500).json(err);
+  }
+});
+//PRODUCT SEARCH
 router.get("/search", async (req, res) => {
   const resultPerPage = 5;
   const apiFeature = new ApiFeature(Product.find(), req.query).search();
@@ -100,7 +202,6 @@ router.get("/search", async (req, res) => {
   let filteredProductsCount = products.length;
   products = await apiFeature.query.clone();
   try {
-    // res.header("Access-Control-Allow-Origin", "*");
     return res.status(200).json({
       success: true,
       resultPerPage,

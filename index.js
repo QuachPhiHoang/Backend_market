@@ -1,7 +1,8 @@
 const express = require("express");
 const morgan = require("morgan");
+const { default: helmet } = require("helmet");
 const app = express();
-const dotenv = require("dotenv");
+const dotenv = require("dotenv").config;
 const cloudinary = require("cloudinary");
 const paymentRoute = require("./routes/payment");
 const userRoute = require("./routes/user");
@@ -10,17 +11,18 @@ const productRoute = require("./routes/product");
 const cartRoute = require("./routes/cart");
 const orderRoute = require("./routes/order");
 const bodyParser = require("body-parser");
+const sizeRoute = require("./routes/size");
+const colorRoute = require("./routes/color");
+const variantsRoute = require("./routes/variants");
 const fileUpload = require("express-fileupload");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const compression = require("compression");
 
-const mongoose = require("mongoose");
-
-app.use(morgan("combined"));
+app.use(morgan("dev"));
+app.use(helmet());
 app.use(cors({ credentials: true, origin: true }));
-
-// Config
-dotenv.config();
+app.use(compression());
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
@@ -28,10 +30,8 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-mongoose
-  .connect(process.env.MONGO_URL)
-  .then(() => console.log("DB Connection Success"))
-  .catch((err) => console.log(err));
+//connect mongoose
+require("./src/dbs/init.mongodb");
 
 app.use(express.json({ limit: "50mb" }));
 app.use(cookieParser());
@@ -44,7 +44,8 @@ app.use("/api/products", productRoute);
 app.use("/api/carts", cartRoute);
 app.use("/api/orders", orderRoute);
 app.use("/api/payment", paymentRoute);
+app.use("/api/size", sizeRoute);
+app.use("/api/color", colorRoute);
+app.use("/api/variants", variantsRoute);
 
-app.listen(process.env.PORT || 8080, () => {
-  console.log("Backend server is running");
-});
+module.exports = app;

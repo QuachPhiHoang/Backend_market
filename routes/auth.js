@@ -33,6 +33,7 @@ router.post("/register", async (req, res) => {
     });
     sendToken(newUser, 201, res);
   } catch (err) {
+    console.log(err);
     return res.status(500).json({ message: "User already registered!" });
   }
 });

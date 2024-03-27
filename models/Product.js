@@ -2,10 +2,10 @@ const mongoose = require("mongoose");
 
 const ProductSchema = new mongoose.Schema(
   {
-    slug: { type: String, required: true },
     name: { type: String, required: true, trim: true },
     desc: { type: String, required: true },
-    img: [
+    SKU: { type: String, required: true },
+    images: [
       {
         public_id: {
           type: String,
@@ -18,13 +18,12 @@ const ProductSchema = new mongoose.Schema(
       },
     ],
     sale: { type: String, default: 0 },
-    categories: { type: Array },
+    category: { type: String, required: true },
     gender: { type: String, required: true },
-    categorySlug: { type: String, required: true },
     size: { type: Array },
     colors: { type: Array },
     price: { type: Number, required: true },
-    oldPrice: { type: Number, required: true },
+    newPrice: { type: Number, required: true, default: 0 },
     stock: {
       type: Number,
       required: true,
@@ -54,6 +53,12 @@ const ProductSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    variants: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Variants",
+      },
+    ],
   },
   { timestamps: true }
 );
